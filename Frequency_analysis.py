@@ -53,5 +53,11 @@ file_name = 'Data.xlsx'
 ### Cargar data en DataFrame ###
 Data_yr, Data = Load_data(file_name)
 
-### Probando Add_Obs_data_probs (aca quedé 31 de mayo)
+### Probando Add_Obs_data_probs: (aca quede 06/06)
+for station in Data.columns.values:
+    print(f"\nProcesando estacion: {station}")
+    dict_obs_data = Add_Obs_data_probs(Data[station],Data_yr[station])
+    print(dict_obs_data["Obs_data"])
+    print("N° Observaciones:", dict_obs_data["Observaciones"])
+    print("N° Años:", dict_obs_data["Years"])
 
