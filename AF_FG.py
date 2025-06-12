@@ -47,6 +47,10 @@ def Add_Obs_data_probs(df, df_yr):
     Al calcular P, se le asigna distintas pbb a los valores 0, solo porque al ordenarlos algunos quedarán en posiciones superiores
     a otros, pero esto es solo un tema de ordenar.
     Te queda como tarea: averigua que tratamiento se debe hacer con los valores 0 antes de este paso.
+    Importante: 
+        - Este codigo desecha los valores nulos (o #N/A), pero sigue considerando los valores 0. De hecho
+        a cada valor 0 se le asigna un valor de P por Gringorten
+        - Cuando tiene valores nulos, el termino N_p/N_a es distinto de 1.
     """
 
     # Prepara la salida como diccionario
@@ -56,6 +60,21 @@ def Add_Obs_data_probs(df, df_yr):
     dict_out["Years"] = N_a
     return dict_out
 
+def probs(exp):
+    """
+    genera vectores de probabilidades y períodos de retorno "equiespaciados"
+    hasta cierto orden de magnitud "exp".
+    Los espaciamientos se controlan en el vector "dec"
+    
+    """
+    import numpy as np
+
+    #    print ("    Setting probabilities")
+    dec = np.array([1.5, 2.0, 3.0, 4.0, 5.0, 7.5, 10.0])
+    dec = -np.sort(-dec)
+    exp = 10.0**(exp-np.arange(1.,exp+1,1.))
+    #ACA QUEDE CON ESTA FUNCION. VER LA EXPLICACION QUE TE DA GITHUB COPILOT PARA SEGUIR.
+
 def Fit_distribs(dict_obs_data):
     """
     
@@ -64,8 +83,9 @@ def Fit_distribs(dict_obs_data):
     N_p=dict_obs_data["Observaciones"]
     N_a=dict_obs_data["Years"] 
 
-    T_Table=np.array(T)     #Periodos de retorno a evaluar en un np.array
-    P_Table=1.0 - 1.0/T_Table
+    T_Table=np.array(T)       #Periodos de retorno a evaluar en un np.array
+    P_Table=1.0 - 1.0/T_Table #Se determina la probabilidad de no excedencia para cada T.
+    P_Grid, T_Grid = probs(OOM) #ACA QUEDE CON ESTA FUNCION.
 
 # PARAMETROS DEL ANÁLISIS DE FRECUENCIA
 # Periodos de retorno a evaluar:
