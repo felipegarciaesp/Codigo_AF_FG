@@ -71,9 +71,61 @@ def probs(exp):
 
     #    print ("    Setting probabilities")
     dec = np.array([1.5, 2.0, 3.0, 4.0, 5.0, 7.5, 10.0])
-    dec = -np.sort(-dec)
+    """
+    -   Estos valores están elegidos intencionalmente para crear una serie de divisiones dentro de cada orden de magnitud en el eje de 
+        períodos de retorno.
+    -   Es una práctica común en hidrología y análisis de frecuencia usar subdivisiones logarítmicas (por ejemplo, “subdivisión decadal”).
+    -   Los valores permiten generar períodos de retorno como: 1.5, 2, 3, 4, 5, 7.5, y 10 veces una potencia de 10 
+        (por ejemplo: 15, 20, 30, 40, 50, 75, 100, etc).
+    -   Así, no solo tienes los enteros "10, 100, 1000", sino también valores intermedios que hacen el gráfico más útil y la tabla 
+        más completa.
+    """
+    dec = -np.sort(-dec)    #Técnica para ordenar de mayor a menor. np.sort ordena por defecto de menor a mayor
     exp = 10.0**(exp-np.arange(1.,exp+1,1.))
-    #ACA QUEDE CON ESTA FUNCION. VER LA EXPLICACION QUE TE DA GITHUB COPILOT PARA SEGUIR.
+    """
+    -   Esta función genera un array con las potencias de 10 para cada orden de magnitud desde el máxima hacia abajo.
+        * Si exp = 4: np.arange(1.,5.,1.) da [1,2,3,4]
+        * exp-np.arange(1.,exp+1,1.) da [3,2,1,0]
+        * 10.**[3,2,1,0] da [1000, 100, 10, 1]
+    El proposito de este array generado es crear subdivisiones entre decadas para graficar y tabular de manera mas detallada los T
+    intermedios.
+    """
+    T1=np.outer(dec,exp)
+    T2=T1.T.flatten()
+    T3=T2[T2>=2]
+    """
+    - T1:   Calcula todos los posibles períodos de retorno intermedios combinando cada valor de dec con cada potencia de 10 en exp,
+            generando así una matriz de períodos de retorno "equiespaciados" en escala logarítmica.
+    - T2:   Transpone la matriz T1 y la aplana en un solo vector para obtener una lista unidimensional de todos los períodos de 
+            retorno generados.
+    - T3:   Filtra los períodos de retorno generados, quedándose solo con aquellos mayores o iguales a 2 años.
+    """
+    P_l=1./T3               #Se calcula la probabilidad de excedencia para cada T.
+    P_h=np.sort(1-P_l)      #Se calcula la probabilidad de no excedencia para cada T.
+
+    # Calcula los períodos de retorno asociados a cada probabilidad de excedencia (T_l) y no excedencia (T_h)
+    T_l = 1 / P_l
+    T_h = 1 / (1 - P_h)
+
+    # Concatena las probabilidades de excedencia (excepto el último valor para evitar duplicados) y las de no excedencia,
+    # y hace lo mismo para los períodos de retorno asociados. Redondea las probabilidades según el orden de magnitud para
+    # asegurar precisión, y los períodos de retorno a 3 decimales. Esto genera una grilla simétrica y continua de valores,
+    # útil para graficar o tabular curvas de frecuencia.
+    """
+    Recordar que en python al utilizar [0:-1] estamos diciendo que tome todos los valores del array desde la posición cero excepto
+    el que se encuentra en la última posición. Si quisieramos tomarlos todos, podríamos usar [:], [0:] ó simplemente no explicitar
+    ningun indice (se nos devolvera todo el array).
+    En Python, la notación [n:m] significa: toma todos los valores del array desde la posición n (incluida) hasta la posición m (excluida),
+    es decir, incluye el elemento en la posición n y termina en el elemento m-1.
+    """
+    P = np.round(np.concatenate((P_l[0:-1], P_h)), int(round(np.log(exp[0])) + 3))
+    T = np.round(np.concatenate((T_l[0:-1], T_h)), 3)
+
+    return P, T
+
+
+
+    
 
 def Fit_distribs(dict_obs_data):
     """
@@ -83,13 +135,21 @@ def Fit_distribs(dict_obs_data):
     N_p=dict_obs_data["Observaciones"]
     N_a=dict_obs_data["Years"] 
 
-    T_Table=np.array(T)       #Periodos de retorno a evaluar en un np.array
-    P_Table=1.0 - 1.0/T_Table #Se determina la probabilidad de no excedencia para cada T.
-    P_Grid, T_Grid = probs(OOM) #ACA QUEDE CON ESTA FUNCION.
+    T_Table=np.array(T)         #Periodos de retorno a evaluar en un np.array
+    P_Table=1.0 - 1.0/T_Table   #Se determina la probabilidad de no excedencia para cada T.
+    P_Grid, T_Grid = probs(OOM) #Con funcion probs se genera grilla equiespaciada de P y T.
+    #ACA QUEDÉ, QUIZAS SERIA BUENO PROBAR LA FUNCION probs, PARA QUE PUEDAS HACER UN CODIGO EN DONDE PUEDAS VISUALIZAR LOS VALORES.
 
 # PARAMETROS DEL ANÁLISIS DE FRECUENCIA
 # Periodos de retorno a evaluar:
 T=[2,5,10,20,25,50,100,200,500,1000,10000]
+# Numero de ordenes de magnitud de los periodos de retorno:
+OOM=math.ceil(math.log10(max(T)))
+"""
+math.ceil devuelve el menor entero mayor o igual a x.
+math.ceil(3.2) devuelve 4.
+    
+"""
 
 ### Definir nombres de archivos ###
 file_name = 'Data.xlsx'                 #Planilla con data a analizar
