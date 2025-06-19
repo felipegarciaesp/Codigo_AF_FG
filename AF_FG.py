@@ -51,6 +51,7 @@ def Add_Obs_data_probs(df, df_yr):
         - Este codigo desecha los valores nulos (o #N/A), pero sigue considerando los valores 0. De hecho
         a cada valor 0 se le asigna un valor de P por Gringorten
         - Cuando tiene valores nulos, el termino N_p/N_a es distinto de 1.
+        - Hasta el momento, este codigo no descarta los valores cero antes de hacer cualquier analisis.
     """
 
     # Prepara la salida como diccionario
@@ -138,7 +139,16 @@ def Fit_distribs(dict_obs_data):
     T_Table=np.array(T)         #Periodos de retorno a evaluar en un np.array
     P_Table=1.0 - 1.0/T_Table   #Se determina la probabilidad de no excedencia para cada T.
     P_Grid, T_Grid = probs(OOM) #Con funcion probs se genera grilla equiespaciada de P y T.
-    #ACA QUEDÉ, QUIZAS SERIA BUENO PROBAR LA FUNCION probs, PARA QUE PUEDAS HACER UN CODIGO EN DONDE PUEDAS VISUALIZAR LOS VALORES.
+
+    print ("    Fitting distributions for ", end="")
+    
+    # sorting records by probability
+    Y_Obs=df_Obs[df_Obs.columns.values[0]].values
+    P_Obs=df_Obs[df_Obs.columns.values[1]].values
+
+
+
+    #ACA QUEDÉ
 
 # PARAMETROS DEL ANÁLISIS DE FRECUENCIA
 # Periodos de retorno a evaluar:
