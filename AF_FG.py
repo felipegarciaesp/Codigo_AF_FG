@@ -1,5 +1,7 @@
 ### Carga de librerias ###
 import pandas as pd
+import numpy as np
+import math
 
 
 ### Definicion de funciones ###
@@ -68,7 +70,6 @@ def probs(exp):
     Los espaciamientos se controlan en el vector "dec"
     
     """
-    import numpy as np
 
     #    print ("    Setting probabilities")
     dec = np.array([1.5, 2.0, 3.0, 4.0, 5.0, 7.5, 10.0])
@@ -146,9 +147,68 @@ def Fit_distribs(dict_obs_data):
     Y_Obs=df_Obs[df_Obs.columns.values[0]].values
     P_Obs=df_Obs[df_Obs.columns.values[1]].values
 
+    aux = np.column_stack((P_Obs,Y_Obs))    #Se arma matriz 2D, primera columna con P_Obs y segunda columna con Y_Obs.
+    aux = np.sort(aux,0)                    #Se ordena cada columna de menor a mayor de manera independiente (se rompe la relación).
+
+    P_Obs=aux[:,0]
+    Y_Obs=aux[:,1]
+
+    # setting data for distribution estimates    
+    if positives_only:
+        print ("positives values only")
+        # if positives only, filter data and adjust probabilities for estimates
+        Y_to_fit=df_Obs[df_Obs[df_Obs.columns.values[0]]>0][df_Obs.columns.values[0]].values
+        """
+        Al hacer positives_only igual a True, obtenemos la serie Y_to_fit en donde se desechan valores negativos y nulos.
+        En este punto el codigo sí descarta los valores 0.
+        Y_to_fit tiene la serie de datos sin los valores 0 y sin valores negativos.
+        """
+
+        # if positives only, transform probabilities to lookup in distributions
+        N_Tot=len(Y_Obs)
+        N_Pos=len(Y_to_fit)
+
+        P_Obs_to_Dist=1.-(1.-P_Obs)*(N_Tot+0.)/N_Pos      
+        P_Grid_to_Dist=1.-(1.-P_Grid)*(N_Tot+0.)/N_Pos
+        P_Table_to_Dist=1.-(1.-P_Table)*(N_Tot+0.)/N_Pos
+
+        """
+        Hasta el momento en el codigo se han determinado probabilidades de excedencia considerando la muestra total, incluyendo valores
+        ceros.
+        Como en esta función se descartan los valores 0, entonces se deben corregir las probabilidades de excendencia para reflejar el 
+        nuevo tamaño de la muestra. Por eso, se hace una transformación para que la posición/probabilidad de cada dato positivo siga 
+        siendo consistente con la muestra original.
+        La formula:
+            P_corr = 1 - (1 - P_original) * (N_Tot / N_Pos)
+        hace lo siguiente:
+
+        1. - P_original: Obtiene la probabilidad de no excedencia (probabilidad acumulada hasta el dato).
+        Multiplica por N_Tot/N_Pos: Reescala la probabilidad para reflejar que ahora hay menos datos (solo positivos).
+        1 - ...: Vuelve a transformar a probabilidad de excedencia.
+        Esto "estira" la probabilidad para que la distribución ajustada a los positivos siga representando correctamente la posición 
+        de cada valor en la muestra original.
+
+        Esto es interesante: con Gringorten se asignan probabilidades de 
+        """
+        #ACA QUEDE, CONTINUAR CON EL APUNTE QUE ESTABAS HACIENDO JUSTO DOS LINEAS MAS ARRIBA.
+    else:
+        print ("all values")
+        Y_to_fit=Y_Obs
+
+        N_Tot=len(Y_Obs)
+        N_Pos=len(Y_to_fit)
+
+        P_Obs_to_Dist=P_Obs
+        P_Grid_to_Dist=P_Grid
+        P_Table_to_Dist=P_Table
 
 
-    #ACA QUEDÉ
+
+# SETEO DE PARAMETROS INICIALES
+positives_only = True       # Si es True, se controla que el ajuste de distribuciones y calculos se hace solo con datos positivos,
+                            # ignorando ceros y negativos.
+
+    
 
 # PARAMETROS DEL ANÁLISIS DE FRECUENCIA
 # Periodos de retorno a evaluar:
@@ -161,7 +221,7 @@ math.ceil(3.2) devuelve 4.
     
 """
 
-### Definir nombres de archivos ###
+### DEFINICION NOMBRES DE ARCHIVOS ###
 file_name = 'Data.xlsx'                 #Planilla con data a analizar
 Res_file_name = 'AF Results.xlsx'    #Planilla de resultados
 
@@ -182,4 +242,8 @@ for station in Data.columns.values:
     with pd.ExcelWriter(WB_name, engine='openpyxl', mode='w') as writer:
         dict_obs_data["Obs_data"].to_excel(writer, sheet_name="Info", startrow=2)
     print("done")
+
+
+
+ 
 
