@@ -2,7 +2,9 @@
 import pandas as pd
 import numpy as np
 import math
-
+import scipy.stats as st
+import sys
+import warnings
 
 ### Definicion de funciones ###
 def Load_data(file_name):
@@ -125,10 +127,6 @@ def probs(exp):
 
     return P, T
 
-
-
-    
-
 def Fit_distribs(dict_obs_data):
     """
     
@@ -188,9 +186,10 @@ def Fit_distribs(dict_obs_data):
         Esto "estira" la probabilidad para que la distribución ajustada a los positivos siga representando correctamente la posición 
         de cada valor en la muestra original.
 
-        Esto es interesante: con Gringorten se asignan probabilidades de 
+        Esto es interesante: con Gringorten se asignan probabilidades de no excedencia para cada dato. Luego, estas probabilidades
+        con corregidas de acuerdo a los nuevos valores no-nulos que tenemos.
         """
-        #ACA QUEDE, CONTINUAR CON EL APUNTE QUE ESTABAS HACIENDO JUSTO DOS LINEAS MAS ARRIBA.
+    
     else:
         print ("all values")
         Y_to_fit=Y_Obs
@@ -201,6 +200,152 @@ def Fit_distribs(dict_obs_data):
         P_Obs_to_Dist=P_Obs
         P_Grid_to_Dist=P_Grid
         P_Table_to_Dist=P_Table
+
+    # Se consolida información de probabilidades
+    P_to_Dist=np.concatenate((P_Grid_to_Dist,P_Obs_to_Dist,P_Table_to_Dist))
+    P_to_Dist=np.sort(P_to_Dist)
+
+    """
+    En P_to_Dist se tiene un solo vector con todas las probabilidades a usar.
+    """
+
+    # # Ajustando probabilidades para que correspondan al período mayor (ajuste de duración)
+    P_to_Dist_p=P_to_Dist**(N_a/N_p)
+    P_Obs_to_Dist_p=P_Obs_to_Dist**(N_a/N_p)
+    P_Table_to_Dist_p=P_Table_to_Dist**(N_a/N_p)
+    
+    # Se unen los vectores de probabilidades originales en un solo array y se ordena este
+    # array de menor a mayor.
+    P_to_Chart=np.concatenate((P_Grid,P_Obs,P_Table))
+    P_to_Chart=np.sort(P_to_Chart)
+
+    # Se crea df_Chart:
+    df_Chart=pd.DataFrame(P_to_Chart, columns=["P"])
+    df_Chart["Data"]=""
+
+    # creating R2 DataFrame, filtered observed data 
+    df_R2=pd.DataFrame(P_Obs, columns=["P"])
+    df_R2["Data"]=Y_Obs
+
+    # creating Table DataFrame 
+    df_Table=pd.DataFrame(P_Table, columns=["P"])
+    df_Table["T"]=T_Table
+
+    """
+    Tengo que entender mejor lo que hace esta funcion a partir de aca.
+    """
+
+    #   adapted from: https://stackoverflow.com/questions/6620471/fitting-empirical-distribution-to-theoretical-ones-with-scipy-python
+    
+    i=1
+    print ("        ", end="")
+
+    n= len(DISTRIBUTIONS)
+
+    for dist in DISTRIBUTIONS:
+        distribution=getattr(st, dist)
+
+        # sets console text to show progress and current distribution
+        if i==1:
+            message=str(i)+" of "+str(n)+" ("+str(distribution.name)+")"
+            digits=len(message)
+            print(message, end="")
+      
+        else:
+            digits_old=digits
+            fill=" " * (20-len(str(distribution.name)))
+            message=str(i)+" of "+str(n)+" ("+str(distribution.name)+")"+fill
+            digits=len(message)
+            delete="\b" * (digits_old)
+            print("{0}{1:{2}}".format(delete, message, digits), end="")
+            sys.stdout.flush()
+        i=i+1
+
+        # Try to fit the distribution, dangerous stuff hides errors
+        try:
+            # Ignore warnings from data that can't be fit
+            with warnings.catch_warnings():
+                warnings.filterwarnings('ignore')
+                # fit dist to data
+                arg, loc, scale, params = Fitting(Y_to_fit,distribution)
+
+                # Calculate fitted DF
+#                if(distribution.name=="pearson3" and st.skew(Y_to_fit)<=0.0):
+#                if(distribution.name=="pearson3" and distribution.ppf(0.99, *arg, loc=loc, scale=scale)<=distribution.ppf(0.01, *arg, loc=loc, scale=scale)):
+                if(distribution.ppf(0.99, *arg, loc=loc, scale=scale)<=distribution.ppf(0.01, *arg, loc=loc, scale=scale)):
+                    Y_to_Chart = distribution.ppf(1-P_to_Dist_p, *arg, loc=loc, scale=scale)
+                    Y_R2 = distribution.ppf(1-P_Obs_to_Dist_p, *arg, loc=loc, scale=scale)
+                    Y_Table = distribution.ppf(1-P_Table_to_Dist_p, *arg, loc=loc, scale=scale)
+                else:
+                    Y_to_Chart = distribution.ppf(P_to_Dist_p, *arg, loc=loc, scale=scale)
+                    Y_R2 = distribution.ppf(P_Obs_to_Dist_p, *arg, loc=loc, scale=scale)
+                    Y_Table = distribution.ppf(P_Table_to_Dist_p, *arg, loc=loc, scale=scale)
+
+#                Y_to_Chart = distribution.ppf(P_to_Dist_p, *arg, loc=loc, scale=scale)
+#                Y_R2 = distribution.ppf(P_Obs_to_Dist_p, *arg, loc=loc, scale=scale)
+#                Y_Table = distribution.ppf(P_Table_to_Dist_p, *arg, loc=loc, scale=scale)
+
+                Y_to_Chart=np.nan_to_num(Y_to_Chart)
+                Y_R2=np.nan_to_num(Y_R2)
+                Y_Table=np.nan_to_num(Y_Table)
+
+
+                df_Chart[str(distribution.name)]=Y_to_Chart
+                df_R2[str(distribution.name)]=Y_R2
+                df_Table[str(distribution.name)]=Y_Table
+
+        except Exception:
+            pass
+
+    # erase old distribution name
+    digits_old=digits
+    delete="\b" * (digits_old)
+    print("{0}{1:{2}}".format(delete, str(n)+" of "+str(n)+" (all done)", digits))
+    sys.stdout.flush()
+
+
+    df_Chart=df_Chart.round(OOM+4)
+    df_Chart=df_Chart.drop_duplicates()
+
+    df_Table=df_Table.round(OOM+4)
+    df_Table=df_Table.drop_duplicates()
+
+    # creating R2 DataFrame, filtered observed data 
+    R2=pd.DataFrame(index=df_R2.columns.values)
+    R2["R2"] = NS_ME(df_R2)
+
+    Out_dict={}
+    Out_dict["R2"]=R2
+    Out_dict["Table_data"]=df_Table
+    Out_dict["Chart_data"]=df_Chart
+    
+    return Out_dict
+
+def NS_ME(df_R2):
+    # ACA QUEDE, AL RETOMAR ENTIENDE ESTA FUNCION Y LUEGO CONTINUA A PARTIR DE LA LINEA 437 EN DONDE HACES UN LLAMADO A 
+    # R2_selection (que es una funcion que tambien debes crear)
+    # Lo que me esta preocupando es que hasta el momento el codigo me tira una planilla con el valor de R2 igual a 1.
+    # Lo que podrias hacer es tomar el codigo original de AF y ver que valores te dan en la planilla.
+    """
+    Calcula R2 a partir de las diferencias entre estimaciones y observaciones.
+    podría filtrarse aquí por probabilidades, considerar solo p altas por ejemplo.
+    
+    """
+
+    df_Obs=df_R2["Data"]    
+    df_R2=df_R2.iloc[:,1:]
+
+    mean=df_Obs.mean()
+    div=sum((df_Obs-mean)**2.)
+
+    df_d=df_R2
+    df_d=df_R2.subtract(df_Obs, axis='index')
+    df_d=df_d*df_d
+    num=df_d.sum()
+
+    R2=round(1-num/div,3)
+
+    return R2    
 
 
 
@@ -228,6 +373,41 @@ Res_file_name = 'AF Results.xlsx'    #Planilla de resultados
 ### Cargar data en DataFrame ###
 Data_yr, Data = Load_data(file_name)
 
+### Distribuciones a evaluar ###
+DISTRIBUTIONS = [
+    "norm",        ###### las clasicas
+    "lognorm",     ###### las clasicas
+    "gamma",       ###### las clasicas
+    "pearson3",    ###### las clasicas
+    # "loggamma",    ###### las clasicas
+    "gumbel_r",    ###### las clasicas
+#    "halfcauchy",  ###### otras
+#    "invgamma",    ###### otras
+#    "exponweib",   ###### otras
+#    "burr",        ###### otras
+#    "betaprime",   ###### otras
+#    "ncf",         ###### otras
+#    "exponnorm",   ###### otras
+#    "exponpow",    ###### otras
+#   "genextreme",  ###### otras
+#    "powerlaw",    ###### otras
+    "gengamma",    ###### otras
+#   "ncx2",        ###### otras
+#    "nct",         ###### otras
+#    "mielke",      ###### otras
+#    "invgauss",    ###### otras
+#    "erlang",      ###### otras
+#    "nakagami",    ###### otras
+#    "logistic",    ###### otras
+#    "uniform",     ###### otras
+#    "frechet_r",    ###### otras
+#    "frechet_l",    ###### otras
+#    "weibull_min",  ###### otras
+#    "weibull_max",  ###### otras
+    ]
+
+SELECT_N_DIST = len(DISTRIBUTIONS)
+
 ### Probando Add_Obs_data_probs:
 for station in Data.columns.values:
     
@@ -242,6 +422,25 @@ for station in Data.columns.values:
     with pd.ExcelWriter(WB_name, engine='openpyxl', mode='w') as writer:
         dict_obs_data["Obs_data"].to_excel(writer, sheet_name="Info", startrow=2)
     print("done")
+
+    # Fitting distributions
+    dict_station_results = Fit_distribs(dict_obs_data)
+
+    # creating worksheets
+    print("        Exporting FA data...", end="")
+    with pd.ExcelWriter(WB_name, engine='openpyxl', mode='w') as writer:
+        # Exporting R2 and chart AF info (Chart info includes Table info)
+        R2_T = dict_station_results["R2"].transpose()
+        R2_T.to_excel(writer, sheet_name="FA", startrow=2)
+        dict_station_results["Chart_data"].to_excel(writer, sheet_name="FA", startrow=10)
+    print("done")
+
+    N_dist_selection_by_r2=int(min(SELECT_N_DIST, len(dict_station_results["R2"])-2))
+
+    dict_station_results_S=R2_selection(dict_station_results, N_dist_selection_by_r2)
+    Selected_distribs=dict_station_results_S["Table_data"].columns.values[2:]
+
+    
 
 
 
