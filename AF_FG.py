@@ -127,9 +127,10 @@ def probs(exp):
 
     return P, T
 
-def Fit_distribs(dict_obs_data):
+def Fit_distribs(dict_obs_data): #POR COMPLETAR!
     """
-    
+    Entrega estimaciones de cada distribución seleccionada para datos 
+    observados, tabla requerida y los gráficos por hacer.
     """
     df_Obs=dict_obs_data["Obs_data"]
     N_p=dict_obs_data["Observaciones"]
@@ -238,7 +239,7 @@ def Fit_distribs(dict_obs_data):
     #   adapted from: https://stackoverflow.com/questions/6620471/fitting-empirical-distribution-to-theoretical-ones-with-scipy-python
     
     i=1
-    print ("        ", end="")
+    print ("        ", end="") # Con end="" no se agrega un salto de linea al final (que viene por defecto con print). El cursor queda al final de los espacios impresos, listo para imprimir en la misma linea.
 
     n= len(DISTRIBUTIONS)
 
@@ -261,91 +262,48 @@ def Fit_distribs(dict_obs_data):
             sys.stdout.flush()
         i=i+1
 
-        # Try to fit the distribution, dangerous stuff hides errors
-        try:
-            # Ignore warnings from data that can't be fit
-            with warnings.catch_warnings():
-                warnings.filterwarnings('ignore')
-                # fit dist to data
-                arg, loc, scale, params = Fitting(Y_to_fit,distribution)
+        """
+        distribution = getattr(st, dist) -> Obtiene el objeto de la distribución:
 
-                # Calculate fitted DF
-#                if(distribution.name=="pearson3" and st.skew(Y_to_fit)<=0.0):
-#                if(distribution.name=="pearson3" and distribution.ppf(0.99, *arg, loc=loc, scale=scale)<=distribution.ppf(0.01, *arg, loc=loc, scale=scale)):
-                if(distribution.ppf(0.99, *arg, loc=loc, scale=scale)<=distribution.ppf(0.01, *arg, loc=loc, scale=scale)):
-                    Y_to_Chart = distribution.ppf(1-P_to_Dist_p, *arg, loc=loc, scale=scale)
-                    Y_R2 = distribution.ppf(1-P_Obs_to_Dist_p, *arg, loc=loc, scale=scale)
-                    Y_Table = distribution.ppf(1-P_Table_to_Dist_p, *arg, loc=loc, scale=scale)
-                else:
-                    Y_to_Chart = distribution.ppf(P_to_Dist_p, *arg, loc=loc, scale=scale)
-                    Y_R2 = distribution.ppf(P_Obs_to_Dist_p, *arg, loc=loc, scale=scale)
-                    Y_Table = distribution.ppf(P_Table_to_Dist_p, *arg, loc=loc, scale=scale)
+        Mensaje de progreso (primera vez):
+        Si es la primera iteración (i==1):
+        - Construye un mensaje como 1 of 6 (norm) y lo imprime directo.
+        - Guarda cuántos caracteres imprimió (digits).
+        
+        Mensaje de progreso (resto de iteraciones):
+        Para las siguientes distribuciones:
 
-#                Y_to_Chart = distribution.ppf(P_to_Dist_p, *arg, loc=loc, scale=scale)
-#                Y_R2 = distribution.ppf(P_Obs_to_Dist_p, *arg, loc=loc, scale=scale)
-#                Y_Table = distribution.ppf(P_Table_to_Dist_p, *arg, loc=loc, scale=scale)
+        - Calcula cuántos caracteres tenía el mensaje anterior (digits_old).
+        - Prepara un "relleno" de espacios para mantener alineado el mensaje aunque cambie la longitud del nombre de la distribución.
+        - Construye el nuevo mensaje de progreso (ejemplo: 2 of 6 (lognorm)).
+        - Calcula la longitud del nuevo mensaje (digits).
+        - Prepara una cadena de retroceso (\b) para borrar el mensaje anterior en la consola.
+        - Imprime el mensaje usando el retroceso para "sobreescribir" el anterior, manteniendo la actualización en la misma línea.
+        - Usa sys.stdout.flush() para asegurarse de que se vea en la consola de inmediato.
+        
+        Incrementa el contador:
+        i=i+1
 
-                Y_to_Chart=np.nan_to_num(Y_to_Chart)
-                Y_R2=np.nan_to_num(Y_R2)
-                Y_Table=np.nan_to_num(Y_Table)
+        ¿Qué efecto tiene todo esto?
+        - Cuando ejecutas el script en una terminal, verás solo UNA línea que va actualizando con el estado del bucle, como por ejemplo:
 
+        1 of 6 (norm)
 
-                df_Chart[str(distribution.name)]=Y_to_Chart
-                df_R2[str(distribution.name)]=Y_R2
-                df_Table[str(distribution.name)]=Y_Table
+        Luego se reemplaza por:
 
-        except Exception:
-            pass
+        2 of 6 (lognorm)
 
-    # erase old distribution name
-    digits_old=digits
-    delete="\b" * (digits_old)
-    print("{0}{1:{2}}".format(delete, str(n)+" of "+str(n)+" (all done)", digits))
-    sys.stdout.flush()
+        Y así sucesivamente. En la consola se vera una linea que cambia, no muchas lineas nuevas.
+        El texto se sobrescribe gracias al uso de los caracteres de retroceso (\b), así que solo ves el estado actual del progreso.
+        Si lo ejecutas en un entorno gráfico o IDE, puede que veas los mensajes uno debajo del otro, pero en una terminal estándar verás solo UNA línea que se va “actualizando”.
+        """
 
+def Fitting(datos, distribution):
+    #ACA QUEDE (05/07). AL RETOMAR SIGUE CON LA IMPLEMENTACION DE ESTA FUNCION Y LUEGO CONTINUA CON EL ENTENDIMIENTO DE Fit_distribs
 
-    df_Chart=df_Chart.round(OOM+4)
-    df_Chart=df_Chart.drop_duplicates()
+        
 
-    df_Table=df_Table.round(OOM+4)
-    df_Table=df_Table.drop_duplicates()
-
-    # creating R2 DataFrame, filtered observed data 
-    R2=pd.DataFrame(index=df_R2.columns.values)
-    R2["R2"] = NS_ME(df_R2)
-
-    Out_dict={}
-    Out_dict["R2"]=R2
-    Out_dict["Table_data"]=df_Table
-    Out_dict["Chart_data"]=df_Chart
-    
-    return Out_dict
-
-def NS_ME(df_R2):
-    # ACA QUEDE, AL RETOMAR ENTIENDE ESTA FUNCION Y LUEGO CONTINUA A PARTIR DE LA LINEA 437 EN DONDE HACES UN LLAMADO A 
-    # R2_selection (que es una funcion que tambien debes crear)
-    # Lo que me esta preocupando es que hasta el momento el codigo me tira una planilla con el valor de R2 igual a 1.
-    # Lo que podrias hacer es tomar el codigo original de AF y ver que valores te dan en la planilla.
-    """
-    Calcula R2 a partir de las diferencias entre estimaciones y observaciones.
-    podría filtrarse aquí por probabilidades, considerar solo p altas por ejemplo.
-    
-    """
-
-    df_Obs=df_R2["Data"]    
-    df_R2=df_R2.iloc[:,1:]
-
-    mean=df_Obs.mean()
-    div=sum((df_Obs-mean)**2.)
-
-    df_d=df_R2
-    df_d=df_R2.subtract(df_Obs, axis='index')
-    df_d=df_d*df_d
-    num=df_d.sum()
-
-    R2=round(1-num/div,3)
-
-    return R2    
+ 
 
 
 
